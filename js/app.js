@@ -2,7 +2,8 @@
 
 import { parseK6Json, averageSummaries, DURATION_METRIC_KEYS, DURATION_METRIC_LABELS } from "./parser.js";
 
-const LOG_DIR = "logs";
+const LOG_ROOT_DIR = "logs";
+const AWS_25_LOG_DIR = `${LOG_ROOT_DIR}/aws/25req`;
 const THEME_STORAGE_KEY = "dashboard-theme";
 
 function getThemeColors() {
@@ -269,8 +270,8 @@ async function buildAws25Tab(container, testIds) {
     testIds.map(async id => {
       const p = String(id).padStart(3, "0");
       const [dataA, dataB] = await Promise.all([
-        fetchAndParse(`${LOG_DIR}/${p}-with-router.json`),
-        fetchAndParse(`${LOG_DIR}/${p}-without-router.json`),
+        fetchAndParse(`${AWS_25_LOG_DIR}/${p}-with-router.json`),
+        fetchAndParse(`${AWS_25_LOG_DIR}/${p}-without-router.json`),
       ]);
       return { id, dataA, dataB };
     })
@@ -328,7 +329,7 @@ async function init() {
   // Load manifest to discover test IDs
   let manifest = {};
   try {
-    const resp = await fetch(`${LOG_DIR}/manifest.json`);
+    const resp = await fetch(`${LOG_ROOT_DIR}/manifest.json`);
     if (resp.ok) manifest = await resp.json();
   } catch { /* fall back to empty manifest */ }
 
