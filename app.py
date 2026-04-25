@@ -268,6 +268,14 @@ def style_performance_badge(value: str) -> str:
     return ""
 
 
+def average_summaries(summaries: list[dict[str, float | None]]) -> dict[str, float | None]:
+    averaged: dict[str, float | None] = {}
+    for key in DURATION_METRIC_KEYS:
+        values = [s.get(key) for s in summaries if s.get(key) is not None]
+        averaged[key] = float(sum(values) / len(values)) if values else None
+    return averaged
+
+
 def build_styled_comparison_figure(
     label_a: str,
     label_b: str,
@@ -437,6 +445,9 @@ def main() -> None:
         st.warning("Nenhum par de testes com padrão NNN-with-router.json / NNN-without-router.json foi encontrado.")
         return
 
+    avg_with_summaries: list[dict[str, float | None]] = []
+    avg_without_summaries: list[dict[str, float | None]] = []
+
     for test_id in test_ids:
         with_file = f"{test_id:03d}-with-router.json"
         without_file = f"{test_id:03d}-without-router.json"
@@ -453,6 +464,9 @@ def main() -> None:
             test_data_a, _, _ = load_any_file(with_path, get_file_cache_token(with_path))
             test_data_b, _, _ = load_any_file(without_path, get_file_cache_token(without_path))
 
+            avg_with_summaries.append(test_data_a)
+            avg_without_summaries.append(test_data_b)
+
             render_metrics_and_chart(
                 with_file,
                 without_file,
@@ -460,6 +474,21 @@ def main() -> None:
                 test_data_b,
                 "With Middleware",
                 "Without Middleware",
+            )
+
+    if avg_with_summaries and avg_without_summaries:
+        average_with_data = average_summaries(avg_with_summaries)
+        average_without_data = average_summaries(avg_without_summaries)
+
+        with st.expander("Average Of The All Tests", expanded=False):
+            st.caption(f"Média de {len(avg_with_summaries)} testes")
+            render_metrics_and_chart(
+                "average-with-router.json",
+                "average-without-router.json",
+                average_with_data,
+                average_without_data,
+                "With Middleware (Average)",
+                "Without Middleware (Average)",
             )
 
 if __name__ == "__main__":
