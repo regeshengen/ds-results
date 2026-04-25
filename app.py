@@ -369,7 +369,6 @@ def main() -> None:
         unsafe_allow_html=True,
     )
     st.markdown("---")
-    st.caption("Compare text summary logs and JSON outputs from k6.")
 
     base_dir = Path(__file__).parent
     log_dir = base_dir / "logs"
@@ -390,106 +389,111 @@ def main() -> None:
         st.error("Nenhum arquivo .json com 'without-router' no nome encontrado em results/logs.")
         return
 
-    col_left, col_right = st.columns(2)
-    with col_left:
-        file_a_options = ["Select..."] + files_with
-        file_a = st.selectbox("Log file A (with-router)", file_a_options, index=0)
-    with col_right:
-        file_b_options = ["Select..."] + files_without
-        file_b = st.selectbox("Log file B (without-router)", file_b_options, index=0)
+    aws_tab, azure_tab, on_premisse_tab = st.tabs([
+        "AWS Results",
+        "Azure Results",
+        "On Premisse Results",
+    ])
 
-    if file_a != "Select..." and file_b != "Select...":
-        path_a = log_dir / file_a
-        path_b = log_dir / file_b
-        data_a, _, _ = load_any_file(path_a, get_file_cache_token(path_a))
-        data_b, _, _ = load_any_file(path_b, get_file_cache_token(path_b))
+    with aws_tab:
+        aws_25_tab, aws_50_tab, aws_75_tab_1, aws_75_tab_2 = st.tabs([
+            "10 x 25 users x 180 sec",
+            "10 x 50 users x 180 sec",
+            "10 x 75 users x 180 sec",
+            "10 x 75 users x 180 sec",
+        ])
 
-        col_label_a, col_label_b = st.columns(2)
-        with col_label_a:
-            label_a = st.text_input("Label A", value="With Middleware")
-        with col_label_b:
-            label_b = st.text_input("Label B", value="Without Middleware")
-
-        render_metrics_and_chart(file_a, file_b, data_a, data_b, label_a, label_b)
-    else:
-        st.info("Selecione os arquivos nos dois dropdowns para exibir a comparação customizada.")
-
-    st.markdown("---")
-    st.markdown(
-        "<h1 style='font-size:3.2rem;margin-bottom:0.2rem;text-align:center'>Results</h1>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "<p style='margin-top:0;margin-bottom:0.4rem;text-align:center;color:#6b7280;font-size:0.95rem'>"
-        "All AWS Tests with 3 minuts running 20 requests per second"
-        "</p>",
-        unsafe_allow_html=True,
-    )
-    st.markdown("---")
-
-    with_ids = {
-        int(m.group(1))
-        for name in files_with
-        for m in [re.match(r"^(\d+)-with-router\.json$", name, flags=re.IGNORECASE)]
-        if m
-    }
-    without_ids = {
-        int(m.group(1))
-        for name in files_without
-        for m in [re.match(r"^(\d+)-without-router\.json$", name, flags=re.IGNORECASE)]
-        if m
-    }
-    test_ids = sorted(with_ids & without_ids)
-
-    if not test_ids:
-        st.warning("Nenhum par de testes com padrão NNN-with-router.json / NNN-without-router.json foi encontrado.")
-        return
-
-    avg_with_summaries: list[dict[str, float | None]] = []
-    avg_without_summaries: list[dict[str, float | None]] = []
-
-    for test_id in test_ids:
-        with_file = f"{test_id:03d}-with-router.json"
-        without_file = f"{test_id:03d}-without-router.json"
-
-        with st.expander(f"Teste {test_id}", expanded=False):
-            st.caption(f"{with_file} vs {without_file}")
-
-            if with_file not in files_with or without_file not in files_without:
-                st.warning(f"Arquivos do Teste {test_id} não encontrados em results/logs.")
-                continue
-
-            with_path = log_dir / with_file
-            without_path = log_dir / without_file
-            test_data_a, _, _ = load_any_file(with_path, get_file_cache_token(with_path))
-            test_data_b, _, _ = load_any_file(without_path, get_file_cache_token(without_path))
-
-            avg_with_summaries.append(test_data_a)
-            avg_without_summaries.append(test_data_b)
-
-            render_metrics_and_chart(
-                with_file,
-                without_file,
-                test_data_a,
-                test_data_b,
-                "With Middleware",
-                "Without Middleware",
+        with aws_25_tab:
+            st.markdown("---")
+            st.markdown(
+                "<h1 style='font-size:3.2rem;margin-bottom:0.2rem;text-align:center'>Results</h1>",
+                unsafe_allow_html=True,
             )
-
-    if avg_with_summaries and avg_without_summaries:
-        average_with_data = average_summaries(avg_with_summaries)
-        average_without_data = average_summaries(avg_without_summaries)
-
-        with st.expander("Average Of The All Tests", expanded=False):
-            st.caption(f"Média de {len(avg_with_summaries)} testes")
-            render_metrics_and_chart(
-                "average-with-router.json",
-                "average-without-router.json",
-                average_with_data,
-                average_without_data,
-                "With Middleware (Average)",
-                "Without Middleware (Average)",
+            st.markdown(
+                "<p style='margin-top:0;margin-bottom:0.4rem;text-align:center;color:#6b7280;font-size:0.95rem'>"
+                "All AWS Tests with 3 minuts running 20 requests per second"
+                "</p>",
+                unsafe_allow_html=True,
             )
+            st.markdown("---")
+
+            with_ids = {
+                int(m.group(1))
+                for name in files_with
+                for m in [re.match(r"^(\d+)-with-router\.json$", name, flags=re.IGNORECASE)]
+                if m
+            }
+            without_ids = {
+                int(m.group(1))
+                for name in files_without
+                for m in [re.match(r"^(\d+)-without-router\.json$", name, flags=re.IGNORECASE)]
+                if m
+            }
+            test_ids = sorted(with_ids & without_ids)
+
+            if not test_ids:
+                st.warning("Nenhum par de testes com padrão NNN-with-router.json / NNN-without-router.json foi encontrado.")
+            else:
+                avg_with_summaries: list[dict[str, float | None]] = []
+                avg_without_summaries: list[dict[str, float | None]] = []
+
+                for test_id in test_ids:
+                    with_file = f"{test_id:03d}-with-router.json"
+                    without_file = f"{test_id:03d}-without-router.json"
+
+                    with st.expander(f"Teste {test_id}", expanded=False):
+                        st.caption(f"{with_file} vs {without_file}")
+
+                        if with_file not in files_with or without_file not in files_without:
+                            st.warning(f"Arquivos do Teste {test_id} não encontrados em results/logs.")
+                            continue
+
+                        with_path = log_dir / with_file
+                        without_path = log_dir / without_file
+                        test_data_a, _, _ = load_any_file(with_path, get_file_cache_token(with_path))
+                        test_data_b, _, _ = load_any_file(without_path, get_file_cache_token(without_path))
+
+                        avg_with_summaries.append(test_data_a)
+                        avg_without_summaries.append(test_data_b)
+
+                        render_metrics_and_chart(
+                            with_file,
+                            without_file,
+                            test_data_a,
+                            test_data_b,
+                            "With Middleware",
+                            "Without Middleware",
+                        )
+
+                if avg_with_summaries and avg_without_summaries:
+                    average_with_data = average_summaries(avg_with_summaries)
+                    average_without_data = average_summaries(avg_without_summaries)
+
+                    with st.expander("Average Of The All Tests", expanded=False):
+                        st.caption(f"Média de {len(avg_with_summaries)} testes")
+                        render_metrics_and_chart(
+                            "average-with-router.json",
+                            "average-without-router.json",
+                            average_with_data,
+                            average_without_data,
+                            "With Middleware (Average)",
+                            "Without Middleware (Average)",
+                        )
+
+        with aws_50_tab:
+            st.info("Sem resultados configurados para este cenário no momento.")
+
+        with aws_75_tab_1:
+            st.info("Sem resultados configurados para este cenário no momento.")
+
+        with aws_75_tab_2:
+            st.info("Sem resultados configurados para este cenário no momento.")
+
+    with azure_tab:
+        st.info("Sem resultados configurados para Azure no momento.")
+
+    with on_premisse_tab:
+        st.info("Sem resultados configurados para On Premisse no momento.")
 
 if __name__ == "__main__":
     main()
