@@ -3,6 +3,62 @@
 import { parseK6Json, averageSummaries, DURATION_METRIC_KEYS, DURATION_METRIC_LABELS } from "./parser.js";
 
 const LOG_DIR = "logs";
+const THEME_STORAGE_KEY = "dashboard-theme";
+
+function getThemeColors() {
+  const styles = getComputedStyle(document.documentElement);
+  return {
+    plotBg: styles.getPropertyValue("--plot-bg").trim(),
+    paperBg: styles.getPropertyValue("--chart-bg").trim(),
+    plotText: styles.getPropertyValue("--plot-text").trim(),
+    text: styles.getPropertyValue("--text").trim(),
+    grid: styles.getPropertyValue("--grid").trim(),
+    legendBg: styles.getPropertyValue("--legend-bg").trim(),
+    seriesA: styles.getPropertyValue("--series-a").trim(),
+    seriesB: styles.getPropertyValue("--series-b").trim(),
+  };
+}
+
+function refreshAllPlotThemes() {
+  const colors = getThemeColors();
+  document.querySelectorAll(".js-plotly-plot").forEach((plotEl) => {
+    Plotly.relayout(plotEl, {
+      plot_bgcolor: colors.plotBg,
+      paper_bgcolor: colors.paperBg,
+      "font.color": colors.plotText,
+      "legend.bgcolor": colors.legendBg,
+      "legend.font.color": colors.plotText,
+      "xaxis.tickfont.color": colors.plotText,
+      "yaxis.tickfont.color": colors.plotText,
+      "yaxis.title.font.color": colors.plotText,
+      "yaxis.gridcolor": colors.grid,
+    });
+    Plotly.restyle(plotEl, [{ "marker.color": colors.seriesA }, { "marker.color": colors.seriesB }], [0, 1]);
+  });
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  localStorage.setItem(THEME_STORAGE_KEY, theme);
+
+  const themeToggle = document.getElementById("theme-toggle");
+  if (themeToggle) themeToggle.checked = theme === "light";
+
+  refreshAllPlotThemes();
+}
+
+function setupThemeToggle() {
+  const themeToggle = document.getElementById("theme-toggle");
+  if (!themeToggle) return;
+
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  const initialTheme = savedTheme === "light" ? "light" : "dark";
+  applyTheme(initialTheme);
+
+  themeToggle.addEventListener("change", () => {
+    applyTheme(themeToggle.checked ? "light" : "dark");
+  });
+}
 
 // ── Data loading ────────────────────────────────────────────────────────────
 
@@ -92,6 +148,7 @@ function renderTable(container, fileA, fileB, dataA, dataB) {
 function renderChart(container, labelA, labelB, dataA, dataB) {
   const keys = ["duration_avg_ms", "duration_med_ms", "duration_p90_ms", "duration_p95_ms"];
   const cats = ["avg", "med", "p(90)", "p(95)"];
+  const colors = getThemeColors();
 
   const chartDiv = el("div", { className: "chart-container" });
   container.appendChild(chartDiv);
@@ -99,16 +156,29 @@ function renderChart(container, labelA, labelB, dataA, dataB) {
   Plotly.newPlot(
     chartDiv,
     [
-      { type: "bar", name: labelA, x: cats, y: keys.map(k => dataA[k] ?? 0), marker: { color: "#1f77b4" } },
-      { type: "bar", name: labelB, x: cats, y: keys.map(k => dataB[k] ?? 0), marker: { color: "#ff7f0e" } },
+      { type: "bar", name: labelA, x: cats, y: keys.map(k => dataA[k] ?? 0), marker: { color: colors.seriesA } },
+      { type: "bar", name: labelB, x: cats, y: keys.map(k => dataB[k] ?? 0), marker: { color: colors.seriesB } },
     ],
     {
       barmode: "group",
-      yaxis: { title: "Duration (ms)", gridcolor: "rgba(0,0,0,0.18)" },
-      plot_bgcolor: "#ffffff",
-      paper_bgcolor: "#ffffff",
-      font: { color: "#1f2937" },
-      legend: { x: 0.01, y: 0.99, xanchor: "left", yanchor: "top", bgcolor: "rgba(255,255,255,0.75)" },
+      yaxis: {
+        title: "Duration (ms)",
+        gridcolor: colors.grid,
+        tickfont: { color: colors.plotText },
+        titlefont: { color: colors.plotText },
+      },
+      xaxis: { tickfont: { color: colors.plotText } },
+      plot_bgcolor: colors.plotBg,
+      paper_bgcolor: colors.paperBg,
+      font: { color: colors.plotText },
+      legend: {
+        x: 0.01,
+        y: 0.99,
+        xanchor: "left",
+        yanchor: "top",
+        bgcolor: colors.legendBg,
+        font: { color: colors.plotText },
+      },
       margin: { l: 60, r: 20, t: 20, b: 40 },
     },
     { responsive: true, displayModeBar: false }
@@ -252,6 +322,7 @@ async function buildAws25Tab(container, testIds) {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 async function init() {
+  setupThemeToggle();
   const mainContent = document.getElementById("main-content");
 
   // Load manifest to discover test IDs

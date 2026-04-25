@@ -9,7 +9,13 @@
 </head>
 <body>
   <div id="app">
-    <h1>Dashboard Results</h1>
+    <header class="topbar">
+      <h1>Dashboard Results</h1>
+      <label class="theme-toggle" for="theme-toggle" aria-label="Theme toggle">
+        <input id="theme-toggle" type="checkbox" />
+        <span class="slider"></span>
+      </label>
+    </header>
     <div id="main-content"></div>
   </div>
   <script type="module" src="js/app.js"></script>
