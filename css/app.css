@@ -1,0 +1,155 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f9fafb;
+  color: #1f2937;
+  line-height: 1.5;
+}
+
+#app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+h1 {
+  text-align: center;
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  font-weight: 700;
+  margin-bottom: 2rem;
+  color: #111827;
+}
+
+/* ── Tabs ──────────────────────────────────────────────── */
+
+.tabs-wrapper { margin-bottom: 0.5rem; }
+
+.tab-bar {
+  display: flex;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  padding: 0.75rem 1.25rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: #6b7280;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.tab-btn:hover { color: #111827; }
+.tab-btn.active { color: #1f77b4; border-bottom-color: #1f77b4; font-weight: 600; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Expanders ─────────────────────────────────────────── */
+
+.expander { border-bottom: 1px solid #d1d5db; margin-bottom: 4px; }
+
+.expander > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+  padding: 0.85rem 0.4rem;
+  cursor: pointer;
+  user-select: none;
+}
+.expander > summary::-webkit-details-marker { display: none; }
+.expander > summary::before {
+  content: "▶";
+  font-size: 0.65rem;
+  color: #9ca3af;
+  transition: transform 0.18s;
+  flex-shrink: 0;
+}
+.expander[open] > summary::before { transform: rotate(90deg); }
+
+.expander-caption {
+  color: #6b7280;
+  font-size: 0.82rem;
+  margin: -0.25rem 0 0.5rem 1.5rem;
+}
+
+.expander-content { padding: 0.25rem 0.4rem 1.25rem 1.5rem; }
+
+/* ── Metrics table ─────────────────────────────────────── */
+
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
+}
+.metrics-table th,
+.metrics-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+}
+.metrics-table th {
+  background: #f3f4f6;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+.metrics-table tr:hover td { background: #f9fafb; }
+.metrics-table td:first-child { font-weight: 500; color: #374151; }
+
+.table-caption { color: #6b7280; font-size: 0.8rem; margin: 0 0 0.25rem; }
+
+/* ── Badges ────────────────────────────────────────────── */
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.badge-green   { background: #16a34a; color: #fff; }
+.badge-red     { background: #dc2626; color: #fff; }
+.badge-gray    { background: #4b5563; color: #fff; }
+.badge-neutral { background: #9ca3af; color: #fff; }
+
+/* ── Chart container ───────────────────────────────────── */
+
+.chart-container {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  overflow: hidden;
+  padding: 8px;
+  margin-bottom: 1rem;
+}
+
+/* ── Section headings ──────────────────────────────────── */
+
+.section { margin-bottom: 0.5rem; }
+.section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.4rem;
+  color: #374151;
+}
+
+/* ── Status messages ───────────────────────────────────── */
+
+.info  { color: #1d4ed8; background: #eff6ff; padding: 0.75rem 1rem; border-radius: 6px; margin: 0.5rem 0; }
+.warn  { color: #92400e; background: #fffbeb; padding: 0.75rem 1rem; border-radius: 6px; margin: 0.5rem 0; }
+.error { color: #991b1b; background: #fef2f2; padding: 0.75rem 1rem; border-radius: 6px; margin: 0.5rem 0; }
