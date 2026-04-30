@@ -3,8 +3,15 @@
 import { parseK6Json, averageSummaries, DURATION_METRIC_KEYS, DURATION_METRIC_LABELS } from "./parser.js";
 
 const LOG_ROOT_DIR = "logs";
-const AWS_25_LOG_DIR = `${LOG_ROOT_DIR}/aws/25req`;
+const AWS_25_180_LOG_DIR = `${LOG_ROOT_DIR}/aws/25req180`;
+const AWS_25_360_LOG_DIR = `${LOG_ROOT_DIR}/aws/25req360`;
+const AWS_25_540_LOG_DIR = `${LOG_ROOT_DIR}/aws/25req540`;
+const AWS_50_180_LOG_DIR = `${LOG_ROOT_DIR}/aws/50req180`;
+const AWS_50_360_LOG_DIR = `${LOG_ROOT_DIR}/aws/50req360`;
+const AWS_50_540_LOG_DIR = `${LOG_ROOT_DIR}/aws/50req540`;
+const DEFAULT_TEST_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const THEME_STORAGE_KEY = "dashboard-theme";
+const POLL_INTERVAL_MS = 10_000;
 
 function getThemeColors() {
   const styles = getComputedStyle(document.documentElement);
@@ -255,14 +262,14 @@ function createTabs(defs) {
   return { wrapper, panels };
 }
 
-// ── AWS / 25-users tab ───────────────────────────────────────────────────────
+// ── AWS scenario tabs ───────────────────────────────────────────────────────
 
-async function buildAws25Tab(container, testIds) {
+async function buildAwsScenarioTab(container, testIds, logDir) {
   if (!testIds.length) {
     container.appendChild(createInfoMsg(
       "No test pair matching the NNN-with-router.json / NNN-without-router.json pattern was found."
     ));
-    return;
+    return null;
   }
 
   // Fetch all test data in parallel
@@ -270,14 +277,15 @@ async function buildAws25Tab(container, testIds) {
     testIds.map(async id => {
       const p = String(id).padStart(3, "0");
       const [dataA, dataB] = await Promise.all([
-        fetchAndParse(`${AWS_25_LOG_DIR}/${p}-with-router.json`),
-        fetchAndParse(`${AWS_25_LOG_DIR}/${p}-without-router.json`),
+        fetchAndParse(`${logDir}/${p}-with-router.json`),
+        fetchAndParse(`${logDir}/${p}-without-router.json`),
       ]);
       return { id, dataA, dataB };
     })
   );
 
   const loaded = [];
+  let maxLoadedId = 0;
 
   settled.forEach((result, idx) => {
     const id = testIds[idx];
@@ -288,6 +296,7 @@ async function buildAws25Tab(container, testIds) {
       const wf  = `${p}-with-router.json`;
       const wof = `${p}-without-router.json`;
       loaded.push({ dataA, dataB });
+      if (id > maxLoadedId) maxLoadedId = id;
 
       container.appendChild(
         createExpander(`Test ${id}`, `${wf} vs ${wof}`, content => {
@@ -303,21 +312,81 @@ async function buildAws25Tab(container, testIds) {
     }
   });
 
-  if (loaded.length) {
+  // ── Live average expander — re-renders whenever new tests arrive ───────────
+  const avgDetails = el("details", { className: "expander" });
+  avgDetails.appendChild(el("summary", { textContent: "Average Of The All Tests" }));
+  const avgCaption = el("p", { className: "expander-caption" });
+  const avgContent = el("div", { className: "expander-content" });
+  avgDetails.appendChild(avgCaption);
+  avgDetails.appendChild(avgContent);
+
+  function renderAvg() {
+    if (!loaded.length) return;
+    avgCaption.textContent = `Average of ${loaded.length} tests`;
+    avgContent.innerHTML = "";
     const avgWith    = averageSummaries(loaded.map(t => t.dataA));
     const avgWithout = averageSummaries(loaded.map(t => t.dataB));
-
-    container.appendChild(
-      createExpander("Average Of The All Tests", `Average of ${loaded.length} tests`, content => {
-        renderMetricsAndChart(
-          content,
-          "average-with-router.json", "average-without-router.json",
-          avgWith, avgWithout,
-          "With Middleware (Average)", "Without Middleware (Average)"
-        );
-      })
+    renderMetricsAndChart(
+      avgContent,
+      "average-with-router.json", "average-without-router.json",
+      avgWith, avgWithout,
+      "With Middleware (Average)", "Without Middleware (Average)"
     );
   }
+
+  avgDetails.addEventListener("toggle", () => {
+    if (avgDetails.open) {
+      renderAvg();
+      avgContent.querySelectorAll(".js-plotly-plot").forEach(e => Plotly.Plots.resize(e));
+    }
+  });
+
+  if (loaded.length) {
+    avgCaption.textContent = `Average of ${loaded.length} tests`;
+    container.appendChild(avgDetails);
+  }
+
+  return { loaded, maxLoadedId, container, logDir, avgDetails, avgCaption, renderAvg };
+}
+
+// ── Auto-poll for new test files ─────────────────────────────────────────────
+
+async function pollScenario(state) {
+  if (!state) return;
+  const nextId = state.maxLoadedId + 1;
+  const p = String(nextId).padStart(3, "0");
+
+  try {
+    const [dataA, dataB] = await Promise.all([
+      fetchAndParse(`${state.logDir}/${p}-with-router.json`),
+      fetchAndParse(`${state.logDir}/${p}-without-router.json`),
+    ]);
+
+    const wf  = `${p}-with-router.json`;
+    const wof = `${p}-without-router.json`;
+    state.loaded.push({ dataA, dataB });
+    state.maxLoadedId = nextId;
+
+    const expander = createExpander(`Test ${nextId}`, `${wf} vs ${wof}`, content => {
+      renderMetricsAndChart(content, wf, wof, dataA, dataB, "With Middleware", "Without Middleware");
+    });
+
+    // Insert before average expander, or append + add average if first test ever
+    if (state.avgDetails.parentNode === state.container) {
+      state.container.insertBefore(expander, state.avgDetails);
+    } else {
+      state.container.appendChild(expander);
+      state.avgCaption.textContent = `Average of ${state.loaded.length} tests`;
+      state.container.appendChild(state.avgDetails);
+    }
+
+    // Refresh average if currently open, otherwise just update caption
+    if (state.avgDetails.open) state.renderAvg();
+    else state.avgCaption.textContent = `Average of ${state.loaded.length} tests`;
+
+  } catch { /* file not yet available — retry on next interval */ }
+
+  setTimeout(() => pollScenario(state), POLL_INTERVAL_MS);
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -333,7 +402,12 @@ async function init() {
     if (resp.ok) manifest = await resp.json();
   } catch { /* fall back to empty manifest */ }
 
-  const awsIds = (manifest.aws_25 ?? []).map(Number);
+  const aws25x180Ids = (manifest.aws_25_180 ?? DEFAULT_TEST_IDS).map(Number);
+  const aws25x360Ids = (manifest.aws_25_360 ?? DEFAULT_TEST_IDS).map(Number);
+  const aws25x540Ids = (manifest.aws_25_540 ?? DEFAULT_TEST_IDS).map(Number);
+  const aws50x180Ids = (manifest.aws_50_180 ?? DEFAULT_TEST_IDS).map(Number);
+  const aws50x360Ids = (manifest.aws_50_360 ?? DEFAULT_TEST_IDS).map(Number);
+  const aws50x540Ids = (manifest.aws_50_540 ?? DEFAULT_TEST_IDS).map(Number);
 
   // Main tabs: AWS / Azure / On Premises
   const { wrapper, panels } = createTabs([
@@ -346,16 +420,24 @@ async function init() {
   // AWS sub-tabs
   const { wrapper: awsWrapper, panels: awsPanels } = createTabs([
     { label: "10 x 25 users x 180 sec" },
+    { label: "10 x 25 users x 360 sec" },
+    { label: "10 x 25 users x 540 sec" },
     { label: "10 x 50 users x 180 sec" },
-    { label: "10 x 75 users x 180 sec" },
-    { label: "10 x 75 users x 180 sec" },
+    { label: "10 x 50 users x 360 sec" },
+    { label: "10 x 50 users x 540 sec" },
   ]);
   panels[0].appendChild(awsWrapper);
 
-  await buildAws25Tab(awsPanels[0], awsIds);
-  awsPanels[1].appendChild(createInfoMsg("No results configured for this scenario at the moment."));
-  awsPanels[2].appendChild(createInfoMsg("No results configured for this scenario at the moment."));
-  awsPanels[3].appendChild(createInfoMsg("No results configured for this scenario at the moment."));
+  const scenarioStates = [];
+  scenarioStates.push(await buildAwsScenarioTab(awsPanels[0], aws25x180Ids, AWS_25_180_LOG_DIR));
+  scenarioStates.push(await buildAwsScenarioTab(awsPanels[1], aws25x360Ids, AWS_25_360_LOG_DIR));
+  scenarioStates.push(await buildAwsScenarioTab(awsPanels[2], aws25x540Ids, AWS_25_540_LOG_DIR));
+  scenarioStates.push(await buildAwsScenarioTab(awsPanels[3], aws50x180Ids, AWS_50_180_LOG_DIR));
+  scenarioStates.push(await buildAwsScenarioTab(awsPanels[4], aws50x360Ids, AWS_50_360_LOG_DIR));
+  scenarioStates.push(await buildAwsScenarioTab(awsPanels[5], aws50x540Ids, AWS_50_540_LOG_DIR));
+
+  // Start polling each scenario for new files
+  scenarioStates.forEach(state => setTimeout(() => pollScenario(state), POLL_INTERVAL_MS));
 
   panels[1].appendChild(createInfoMsg("No results configured for Azure at the moment."));
   panels[2].appendChild(createInfoMsg("No results configured for On Premises at the moment."));
